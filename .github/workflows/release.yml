@@ -26,7 +26,9 @@ jobs:
         context: .
         file: Dockerfile
         push: true
-        tags: anarkiwi/pytorch-xpu:${{ steps.change_version.outputs.VERSION }}
+        tags: |
+          anarkiwi/pytorch-xpu:${{ steps.change_version.outputs.VERSION }}
+          anarkiwi/pytorch-xpu:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
       if: github.repository == 'anarkiwi/xpu-pytorch' && github.event_name == 'push'
