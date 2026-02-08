@@ -7,6 +7,12 @@ jobs:
       name: "release"
     steps:
     - uses: actions/checkout@v6
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
+    - name: Change for main
+      id: change_version
+      run: if [ "${{ steps.get_version.outputs.VERSION }}" == "main" ]; then echo ::set-output name=VERSION::latest; else echo ::set-output name=VERSION::${{ steps.get_version.outputs.VERSION }}; fi
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     - name: Login to Docker Hub
@@ -20,7 +26,8 @@ jobs:
         context: .
         file: Dockerfile
         push: true
-        tags: anarkiwi/pytorch-xpu
+        tags: anarkiwi/pytorch-xpu:${{ steps.change_version.outputs.VERSION }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
       if: github.repository == 'anarkiwi/xpu-pytorch' && github.event_name == 'push'
+
