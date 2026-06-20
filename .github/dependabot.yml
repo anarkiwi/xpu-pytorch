@@ -5,6 +5,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # intel/oneapi-runtime is only the build stage; torch+xpu's wheels bundle
+      # their own oneAPI runtime into the final image, so the base image version
+      # doesn't affect what ships. Skip major bumps (untested risk, no benefit);
+      # minor/patch within a major still come through.
+      - dependency-name: "intel/oneapi-runtime"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
