@@ -26,7 +26,7 @@ RUN rm -f /etc/apt/sources.list.d/intel-graphics.list \
     && apt-get -y update && apt-get install -yq --no-install-recommends python3 python3-pip python-dev-is-python3 \
     && pip install --no-cache-dir $PIP_OPTS --break-system-packages torch torchvision torchaudio --index-url http://download.pytorch.org/whl/xpu --trusted-host download.pytorch.org
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 # ca-certificates first (Ubuntu http repo) so apt can fetch the Intel GPU repo
 # over https; reuse the build image's signing key for that repo.
 COPY --from=builder /usr/share/keyrings/intel-graphics-archive-keyring.gpg /usr/share/keyrings/
