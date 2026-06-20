@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Build torch+xpu on Intel's oneAPI image, then ship it on a slim runtime stage.
 #
 # torch+xpu's pip wheels bundle the entire oneAPI runtime they need (SYCL, MKL,
@@ -38,6 +39,13 @@ RUN apt-get -y update && apt-get install -yq --no-install-recommends \
     && apt-get install -yq --no-install-recommends \
         intel-opencl-icd intel-ocloc libze1 libze-dev libze-intel-gpu1 libigc2 libigdgmm12 \
     && rm -rf /var/lib/apt/lists/*
-# The torch+xpu install, with its bundled oneAPI runtime libraries.
-COPY --from=builder /usr/local /usr/local
+# The torch+xpu install, with its bundled oneAPI runtime libraries (~8GB). Split
+# across several COPY layers: a single ~2.9GB layer trips Docker Hub's blob-size
+# limit on push ("400 Bad request" on the blob PUT). triton (~2.6GB) and the rest
+# of the python packages go in their own layers; the loose oneAPI runtime libs
+# (mkl/sycl/ccl/...) and everything else land in the last. The --exclude flags
+# keep the layers disjoint so the tree is copied exactly once.
+COPY --from=builder /usr/local/lib/python3.12/dist-packages/triton /usr/local/lib/python3.12/dist-packages/triton
+COPY --from=builder --exclude=dist-packages/triton /usr/local/lib/python3.12 /usr/local/lib/python3.12
+COPY --from=builder --exclude=lib/python3.12 /usr/local /usr/local
 RUN ldconfig
