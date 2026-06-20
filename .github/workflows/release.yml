@@ -33,6 +33,8 @@ jobs:
           anarkiwi/pytorch-xpu:${{ steps.change_version.outputs.VERSION }}
           anarkiwi/pytorch-xpu:latest
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        # mode=min: see docker.yml -- mode=max blows GitHub's 10GB cache limit
+        # caching the oneAPI builder stage's intermediate layers.
+        cache-to: type=gha,mode=min
       if: github.repository == 'anarkiwi/xpu-pytorch' && github.event_name == 'push'
 
