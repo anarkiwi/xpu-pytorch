@@ -15,24 +15,28 @@
 # come from the intel-sycl-rt wheel. Without g++: "InvalidCxxCompiler"; without
 # libze-dev: "level_zero/ze_api.h: No such file"; without intel-ocloc:
 # "FileNotFoundError: 'ocloc'". Net: ~13GB -> ~8.5GB. (The -devel build image
-# shipped g++; plain ubuntu:24.04 does not.)
-FROM intel/oneapi-runtime:2025.3.1-0-devel-ubuntu24.04 AS builder
+# shipped g++; plain ubuntu does not.)
+FROM intel/oneapi-runtime:2025.3.1-0-devel-ubuntu24.04 AS keyring
+
+# Same Ubuntu release as the final stage so the pip-installed packages copied
+# below match its system Python (PYVER).
+FROM ubuntu:26.04 AS builder
+ARG PYVER=3.14
 ARG PIP_OPTS=""
 ENV PIP_OPTS=$PIP_OPTS
-# Drop the Intel GPU repo the base image preconfigures: the builder only needs
-# base ubuntu (python3/pip) and pip-installs torch, and that repo intermittently
-# 403s from cloud/CI runner IPs -- which would otherwise fail apt-get update here.
-RUN rm -f /etc/apt/sources.list.d/intel-graphics.list \
-    && apt-get -y update && apt-get install -yq --no-install-recommends python3 python3-pip python-dev-is-python3 \
+# The builder only needs base ubuntu (python3/pip) and pip-installs torch, so it
+# has no Intel GPU repo configured (that repo intermittently 403s from CI IPs).
+RUN apt-get -y update && apt-get install -yq --no-install-recommends python3 python3-pip python-dev-is-python3 \
     && pip install --no-cache-dir $PIP_OPTS --break-system-packages torch torchvision torchaudio --index-url http://download.pytorch.org/whl/xpu --trusted-host download.pytorch.org
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
+ARG PYVER=3.14
 # ca-certificates first (Ubuntu http repo) so apt can fetch the Intel GPU repo
 # over https; reuse the build image's signing key for that repo.
-COPY --from=builder /usr/share/keyrings/intel-graphics-archive-keyring.gpg /usr/share/keyrings/
+COPY --from=keyring /usr/share/keyrings/intel-graphics-archive-keyring.gpg /usr/share/keyrings/
 RUN apt-get -y update && apt-get install -yq --no-install-recommends \
         ca-certificates python3 python3-pip python-dev-is-python3 g++ \
-    && echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/gpu/ubuntu noble unified" > /etc/apt/sources.list.d/intel-graphics.list \
+    && echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/gpu/ubuntu resolute unified" > /etc/apt/sources.list.d/intel-graphics.list \
     # The Intel GPU repo intermittently 403s from cloud/CI runner IPs, so retry
     # the update that refreshes it (apt treats a 403 as fatal, hence the loop).
     && for i in 1 2 3 4 5 6; do apt-get -y -o Acquire::Retries=3 update && break || { echo "intel gpu repo apt-get update failed (rate-limit/403), attempt $i/6"; sleep 20; }; done \
@@ -45,7 +49,7 @@ RUN apt-get -y update && apt-get install -yq --no-install-recommends \
 # of the python packages go in their own layers; the loose oneAPI runtime libs
 # (mkl/sycl/ccl/...) and everything else land in the last. The --exclude flags
 # keep the layers disjoint so the tree is copied exactly once.
-COPY --from=builder /usr/local/lib/python3.12/dist-packages/triton /usr/local/lib/python3.12/dist-packages/triton
-COPY --from=builder --exclude=dist-packages/triton /usr/local/lib/python3.12 /usr/local/lib/python3.12
-COPY --from=builder --exclude=lib/python3.12 /usr/local /usr/local
+COPY --from=builder /usr/local/lib/python${PYVER}/dist-packages/triton /usr/local/lib/python${PYVER}/dist-packages/triton
+COPY --from=builder --exclude=dist-packages/triton /usr/local/lib/python${PYVER} /usr/local/lib/python${PYVER}
+COPY --from=builder --exclude=lib/python${PYVER} /usr/local /usr/local
 RUN ldconfig
